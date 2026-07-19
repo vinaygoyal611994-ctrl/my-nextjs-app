@@ -91,9 +91,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const headerFill = (argb: string): ExcelJS.Fill => ({
     type: "pattern", pattern: "solid", fgColor: { argb },
   });
-  const rightAlign: ExcelJS.Alignment = { horizontal: "right" };
-  const centerAlign: ExcelJS.Alignment = { horizontal: "center" };
-  const border: ExcelJS.Borders = {
+  const rightAlign: Partial<ExcelJS.Alignment> = { horizontal: "right" };
+  const centerAlign: Partial<ExcelJS.Alignment> = { horizontal: "center" };
+  const border: Partial<ExcelJS.Borders> = {
     top: { style: "thin" }, bottom: { style: "thin" },
     left: { style: "thin" }, right: { style: "thin" },
   };

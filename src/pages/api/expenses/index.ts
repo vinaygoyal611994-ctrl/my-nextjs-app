@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { JournalService } from "@/lib/accounting/journal";
 import { z } from "zod";
 import Decimal from "decimal.js";
+import type { Prisma } from "@prisma/client";
 
 const ExpenseSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -22,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === "GET") {
     const { from, to } = req.query;
-    const where: Parameters<typeof prisma.expense.findMany>[0]["where"] = { firmId };
+    const where: Prisma.ExpenseWhereInput = { firmId };
     if (from) where.date = { gte: new Date(from as string) };
     if (from && to) where.date = { gte: new Date(from as string), lte: new Date(to as string + "T23:59:59") };
 

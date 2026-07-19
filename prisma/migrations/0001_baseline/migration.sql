@@ -1,0 +1,3 @@
+-- Baseline migration
+-- Database schema was imported manually. This migration is intentionally empty.
+-- It exists so that `prisma migrate deploy` does not throw P3005.

@@ -1,0 +1,759 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  malik
+  munim
+}
+
+enum PartyType {
+  kisan
+  vyapari
+  transporter
+  palledar
+  other
+  staff
+}
+
+enum BalanceType {
+  Dr
+  Cr
+}
+
+enum AccountType {
+  asset
+  liability
+  income
+  expense
+  capital
+}
+
+enum AccountSubType {
+  cash
+  bank
+  receivable
+  payable
+  income
+  direct_expense
+  indirect_expense
+  stock
+  capital
+  advance
+  other
+}
+
+enum PurchaseType {
+  aadhat
+  khud
+}
+
+enum PaymentMode {
+  cash
+  bank
+  upi
+  cheque
+}
+
+enum VoucherType {
+  purchase
+  sale
+  receipt
+  payment
+  contra
+  journal
+  advance
+  expense
+}
+
+enum StockMovementType {
+  in
+  out
+  adjustment
+}
+
+enum AdjustmentReason {
+  sukhat
+  kharabi
+  ghar_use
+  other
+}
+
+enum SaudaStatus {
+  pending
+  partial
+  complete
+  cancelled
+}
+
+enum AdvanceStatus {
+  open
+  partial
+  closed
+}
+
+enum ChequeStatus {
+  pending
+  cleared
+  bounced
+}
+
+enum GstType {
+  intra
+  inter
+}
+
+// ─── MASTER TABLES ────────────────────────────────────────────────────────────
+
+model Firm {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(200)
+  address     String?  @db.Text
+  licenseNo   String?  @db.VarChar(100) @map("license_no")
+  gstin       String?  @db.VarChar(20)
+  pan         String?  @db.VarChar(15)
+  fyStart     DateTime @map("fy_start") @db.Date
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users               User[]
+  settings            Setting[]
+  parties             Party[]
+  accounts            Account[]
+  items               Item[]
+  godowns             Godown[]
+  bankAccounts        BankAccount[]
+  journalEntries      JournalEntry[]
+  purchases           Purchase[]
+  sales               Sale[]
+  paymentsReceipts    PaymentReceipt[]
+  expenses            Expense[]
+  advances            Advance[]
+  saudas              Sauda[]
+  amanats             Amanat[]
+  committeePayments   CommitteePayment[]
+  gatePasses          GatePass[]
+  stockLots           StockLot[]
+  bardanaMovements    BardanaMovement[]
+  bhavDiary           BhavDiary[]
+  fyClosings          FyClosing[]
+  palledarSettlements PalledarSettlement[]
+
+  @@map("firms")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  firmId    Int      @map("firm_id")
+  name      String   @db.VarChar(150)
+  mobile    String   @db.VarChar(15)
+  password  String   @db.VarChar(255)
+  role      Role     @default(munim)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  firm             Firm              @relation(fields: [firmId], references: [id])
+  journalEntries   JournalEntry[]
+  purchases        Purchase[]
+  sales            Sale[]
+  paymentsReceipts PaymentReceipt[]
+  expenses         Expense[]
+
+  @@unique([mobile])
+  @@map("users")
+}
+
+model Setting {
+  id              Int      @id @default(autoincrement())
+  firmId          Int      @map("firm_id")
+  key             String   @db.VarChar(100)
+  value           String   @db.VarChar(500)
+  effectiveFrom   DateTime @map("effective_from") @db.Date
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  firm Firm @relation(fields: [firmId], references: [id])
+
+  @@index([firmId, key, effectiveFrom])
+  @@map("settings")
+}
+
+model Party {
+  id              Int       @id @default(autoincrement())
+  firmId          Int       @map("firm_id")
+  name            String    @db.VarChar(200)
+  type            PartyType
+  village         String?   @db.VarChar(150)
+  mobile          String?   @db.VarChar(15)
+  gstin           String?   @db.VarChar(20)
+  pan             String?   @db.VarChar(15)
+  paymentTermDays Int       @default(0) @map("payment_term_days")
+  openingBalance  Decimal   @default(0) @db.Decimal(14, 2) @map("opening_balance")
+  openingType     BalanceType @default(Cr) @map("opening_type")
+  byajRateOverride Decimal? @db.Decimal(6, 4) @map("byaj_rate_override")
+  monthlySalary   Decimal? @db.Decimal(10,2) @map("monthly_salary")
+  accountId       Int?      @map("account_id")
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  firm     Firm     @relation(fields: [firmId], references: [id])
+  account  Account? @relation(fields: [accountId], references: [id])
+
+  purchases        Purchase[]
+  sales            Sale[]
+  paymentsReceipts PaymentReceipt[]
+  advances         Advance[]
+  saudas           Sauda[]
+  amanats          Amanat[]
+  expenses         Expense[]
+  bardanaMovements BardanaMovement[]
+  stockLots        StockLot[]
+
+  @@index([firmId, type])
+  @@index([firmId, village])
+  @@map("parties")
+}
+
+model Item {
+  id                  Int      @id @default(autoincrement())
+  firmId              Int      @map("firm_id")
+  name                String   @db.VarChar(150)
+  hindiName           String?  @db.VarChar(150) @map("hindi_name")
+  defaultUnitWeightKg Decimal  @default(40) @db.Decimal(8, 3) @map("default_unit_weight_kg")
+  purchaseAccountId   Int?     @map("purchase_account_id")
+  salesAccountId      Int?     @map("sales_account_id")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  firm            Firm     @relation(fields: [firmId], references: [id])
+  purchaseAccount Account? @relation("ItemPurchaseAccount", fields: [purchaseAccountId], references: [id])
+  salesAccount    Account? @relation("ItemSalesAccount", fields: [salesAccountId], references: [id])
+
+  purchaseItems PurchaseItem[]
+  saleItems     SaleItem[]
+  saudaItems    SaudaItem[]
+  amanatItems   AmanatItem[]
+  stockLots     StockLot[]
+  bhavDiary     BhavDiary[]
+
+  @@index([firmId])
+  @@map("items")
+}
+
+model Godown {
+  id        Int      @id @default(autoincrement())
+  firmId    Int      @map("firm_id")
+  name      String   @db.VarChar(150)
+  address   String?  @db.VarChar(300)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  firm        Firm        @relation(fields: [firmId], references: [id])
+  stockLots   StockLot[]
+  amanatItems AmanatItem[]
+
+  @@map("godowns")
+}
+
+model BankAccount {
+  id            Int      @id @default(autoincrement())
+  firmId        Int      @map("firm_id")
+  bankName      String   @db.VarChar(150) @map("bank_name")
+  accountNo     String   @db.VarChar(50) @map("account_no")
+  ifsc          String?  @db.VarChar(20)
+  accountId     Int?     @map("account_id")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  firm     Firm      @relation(fields: [firmId], references: [id])
+  account  Account?  @relation(fields: [accountId], references: [id])
+  expenses Expense[]
+
+  @@map("bank_accounts")
+}
+
+// ─── ACCOUNTING CORE ──────────────────────────────────────────────────────────
+
+model Account {
+  id          Int            @id @default(autoincrement())
+  firmId      Int            @map("firm_id")
+  code        String         @db.VarChar(30)
+  name        String         @db.VarChar(200)
+  type        AccountType
+  subType     AccountSubType @map("sub_type")
+  parentId    Int?           @map("parent_id")
+  isSystem    Boolean        @default(false) @map("is_system")
+  partyId     Int?           @map("party_id")
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  firm         Firm          @relation(fields: [firmId], references: [id])
+  parent       Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children     Account[]     @relation("AccountHierarchy")
+  journalLines JournalLine[]
+  parties      Party[]
+  bankAccounts BankAccount[]
+  itemsPurchase Item[]       @relation("ItemPurchaseAccount")
+  itemsSales    Item[]       @relation("ItemSalesAccount")
+
+  @@unique([firmId, code])
+  @@index([firmId, type])
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id            Int         @id @default(autoincrement())
+  firmId        Int         @map("firm_id")
+  voucherType   VoucherType @map("voucher_type")
+  voucherNo     String      @db.VarChar(30) @map("voucher_no")
+  date          DateTime    @db.Date
+  narration     String?     @db.VarChar(500)
+  refType       String?     @db.VarChar(50) @map("ref_type")
+  refId         Int?        @map("ref_id")
+  totalDebit    Decimal     @db.Decimal(14, 2) @map("total_debit")
+  totalCredit   Decimal     @db.Decimal(14, 2) @map("total_credit")
+  cancelled     Boolean     @default(false)
+  cancelReason  String?     @db.VarChar(300) @map("cancel_reason")
+  createdById   Int         @map("created_by_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  firm        Firm          @relation(fields: [firmId], references: [id])
+  createdBy   User          @relation(fields: [createdById], references: [id])
+  lines       JournalLine[]
+
+  @@index([firmId, date])
+  @@index([firmId, voucherType, voucherNo])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id              Int     @id @default(autoincrement())
+  journalEntryId  Int     @map("journal_entry_id")
+  accountId       Int     @map("account_id")
+  debit           Decimal @default(0) @db.Decimal(14, 2)
+  credit          Decimal @default(0) @db.Decimal(14, 2)
+  narration       String? @db.VarChar(300)
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id])
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_lines")
+}
+
+// ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
+
+model Purchase {
+  id                Int          @id @default(autoincrement())
+  firmId            Int          @map("firm_id")
+  kisanId           Int          @map("kisan_id")
+  purchaseType      PurchaseType @map("purchase_type")
+  billNo            String       @db.VarChar(30) @map("bill_no")
+  date              DateTime     @db.Date
+  totalAmount       Decimal      @db.Decimal(14, 2) @map("total_amount")
+  wagesAmount       Decimal      @default(0) @db.Decimal(14, 2) @map("wages_amount")
+  advanceAdjusted   Decimal      @default(0) @db.Decimal(14, 2) @map("advance_adjusted")
+  byajAdjusted      Decimal      @default(0) @db.Decimal(14, 2) @map("byaj_adjusted")
+  netPayable        Decimal      @db.Decimal(14, 2) @map("net_payable")
+  journalEntryId    Int?         @map("journal_entry_id")
+  cancelled         Boolean      @default(false)
+  cancelReason      String?      @db.VarChar(300) @map("cancel_reason")
+  createdById       Int          @map("created_by_id")
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  firm      Firm     @relation(fields: [firmId], references: [id])
+  kisan     Party    @relation(fields: [kisanId], references: [id])
+  createdBy User     @relation(fields: [createdById], references: [id])
+  items     PurchaseItem[]
+  stockLots StockLot[]
+
+  @@index([firmId, date])
+  @@index([firmId, kisanId])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id              Int     @id @default(autoincrement())
+  purchaseId      Int     @map("purchase_id")
+  itemId          Int     @map("item_id")
+  unitWeightKg    Decimal @db.Decimal(8, 3) @map("unit_weight_kg")
+  quantityBags    Decimal @db.Decimal(10, 3) @map("quantity_bags")
+  totalWeightKg   Decimal @db.Decimal(12, 3) @map("total_weight_kg")
+  ratePerQtl      Decimal @db.Decimal(10, 2) @map("rate_per_qtl")
+  amount          Decimal @db.Decimal(14, 2)
+  katautiPct      Decimal @default(0) @db.Decimal(6, 4) @map("katauti_pct")
+  katautiKg       Decimal @default(0) @db.Decimal(10, 3) @map("katauti_kg")
+  netWeightKg     Decimal @db.Decimal(12, 3) @map("net_weight_kg")
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+  item     Item     @relation(fields: [itemId], references: [id])
+
+  @@index([purchaseId])
+  @@map("purchase_items")
+}
+
+model Sale {
+  id              Int       @id @default(autoincrement())
+  firmId          Int       @map("firm_id")
+  vyapariId       Int       @map("vyapari_id")
+  saudaId         Int?      @map("sauda_id")
+  billNo          String    @db.VarChar(30) @map("bill_no")
+  date            DateTime  @db.Date
+  maalAmount      Decimal   @db.Decimal(14, 2) @map("maal_amount")
+  wagesAmount     Decimal   @default(0) @db.Decimal(14, 2) @map("wages_amount")
+  damiPct         Decimal   @default(0) @db.Decimal(6, 4) @map("dami_pct")
+  damiAmt         Decimal   @default(0) @db.Decimal(14, 2) @map("dami_amt")
+  committeePct    Decimal   @default(0) @db.Decimal(6, 4) @map("committee_pct")
+  committeeAmt    Decimal   @default(0) @db.Decimal(14, 2) @map("committee_amt")
+  kkfPct          Decimal   @default(0) @db.Decimal(6, 4) @map("kkf_pct")
+  kkfAmt          Decimal   @default(0) @db.Decimal(14, 2) @map("kkf_amt")
+  mudatPct        Decimal   @default(0) @db.Decimal(6, 4) @map("mudat_pct")
+  mudatAmt        Decimal   @default(0) @db.Decimal(14, 2) @map("mudat_amt")
+  taxableAmount   Decimal   @default(0) @db.Decimal(14, 2) @map("taxable_amount")
+  gstType         GstType?  @map("gst_type")
+  sgstPct         Decimal   @default(0) @db.Decimal(6, 4) @map("sgst_pct")
+  sgstAmt         Decimal   @default(0) @db.Decimal(14, 2) @map("sgst_amt")
+  cgstPct         Decimal   @default(0) @db.Decimal(6, 4) @map("cgst_pct")
+  cgstAmt         Decimal   @default(0) @db.Decimal(14, 2) @map("cgst_amt")
+  igstPct         Decimal   @default(0) @db.Decimal(6, 4) @map("igst_pct")
+  igstAmt         Decimal   @default(0) @db.Decimal(14, 2) @map("igst_amt")
+  grandTotal      Decimal   @db.Decimal(14, 2) @map("grand_total")
+  vehicleNo       String?   @db.VarChar(30) @map("vehicle_no")
+  driverName      String?   @db.VarChar(150) @map("driver_name")
+  driverMobile    String?   @db.VarChar(15) @map("driver_mobile")
+  biltyNo         String?   @db.VarChar(50) @map("bilty_no")
+  bhadaAmount     Decimal?  @db.Decimal(14, 2) @map("bhada_amount")
+  bhadaPaidBy     String?   @db.VarChar(20) @map("bhada_paid_by")
+  transporterId   Int?      @map("transporter_id")
+  gatePassNo      String?   @db.VarChar(30) @map("gate_pass_no")
+  paymentDueDate  DateTime? @db.Date @map("payment_due_date")
+  journalEntryId  Int?      @map("journal_entry_id")
+  cancelled       Boolean   @default(false)
+  cancelReason    String?   @db.VarChar(300) @map("cancel_reason")
+  createdById     Int       @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  firm      Firm      @relation(fields: [firmId], references: [id])
+  vyapari   Party     @relation(fields: [vyapariId], references: [id])
+  createdBy User      @relation(fields: [createdById], references: [id])
+  items     SaleItem[]
+
+  @@index([firmId, date])
+  @@index([firmId, vyapariId])
+  @@map("sales")
+}
+
+model SaleItem {
+  id            Int     @id @default(autoincrement())
+  saleId        Int     @map("sale_id")
+  itemId        Int     @map("item_id")
+  unitWeightKg  Decimal @db.Decimal(8, 3) @map("unit_weight_kg")
+  quantityBags  Decimal @db.Decimal(10, 3) @map("quantity_bags")
+  totalWeightKg Decimal @db.Decimal(12, 3) @map("total_weight_kg")
+  ratePerQtl    Decimal @db.Decimal(10, 2) @map("rate_per_qtl")
+  amount        Decimal @db.Decimal(14, 2)
+
+  sale Sale @relation(fields: [saleId], references: [id])
+  item Item @relation(fields: [itemId], references: [id])
+
+  @@index([saleId])
+  @@map("sale_items")
+}
+
+model PaymentReceipt {
+  id              Int          @id @default(autoincrement())
+  firmId          Int          @map("firm_id")
+  voucherType     VoucherType  @map("voucher_type")
+  voucherNo       String       @db.VarChar(30) @map("voucher_no")
+  date            DateTime     @db.Date
+  partyId         Int?         @map("party_id")
+  amount          Decimal      @db.Decimal(14, 2)
+  mode            PaymentMode
+  chequeNo        String?      @db.VarChar(50) @map("cheque_no")
+  chequeDate      DateTime?    @db.Date @map("cheque_date")
+  chequeStatus    ChequeStatus? @map("cheque_status")
+  bankAccountId   Int?         @map("bank_account_id")
+  narration       String?      @db.VarChar(300)
+  journalEntryId  Int?         @map("journal_entry_id")
+  cancelled       Boolean      @default(false)
+  cancelReason    String?      @db.VarChar(300) @map("cancel_reason")
+  createdById     Int          @map("created_by_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  firm      Firm   @relation(fields: [firmId], references: [id])
+  party     Party? @relation(fields: [partyId], references: [id])
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([firmId, date])
+  @@map("payments_receipts")
+}
+
+model Expense {
+  id              Int         @id @default(autoincrement())
+  firmId          Int         @map("firm_id")
+  date            DateTime    @db.Date
+  accountId       Int         @map("account_id")
+  amount          Decimal     @db.Decimal(14, 2)
+  mode            PaymentMode
+  bankAccountId   Int?        @map("bank_account_id")
+  partyId         Int?        @map("party_id")
+  narration       String?     @db.VarChar(300)
+  journalEntryId  Int?        @map("journal_entry_id")
+  createdById     Int         @map("created_by_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  firm        Firm         @relation(fields: [firmId], references: [id])
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+  party       Party?       @relation(fields: [partyId], references: [id])
+  createdBy   User         @relation(fields: [createdById], references: [id])
+
+  @@index([firmId, date])
+  @@map("expenses")
+}
+
+model Advance {
+  id              Int           @id @default(autoincrement())
+  firmId          Int           @map("firm_id")
+  kisanId         Int           @map("kisan_id")
+  date            DateTime      @db.Date
+  amount          Decimal       @db.Decimal(14, 2)
+  mode            PaymentMode
+  byajRatePct     Decimal       @db.Decimal(6, 4) @map("byaj_rate_pct")
+  status          AdvanceStatus @default(open)
+  amountRecovered Decimal       @default(0) @db.Decimal(14, 2) @map("amount_recovered")
+  journalEntryId  Int?          @map("journal_entry_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  firm       Firm                @relation(fields: [firmId], references: [id])
+  kisan      Party               @relation(fields: [kisanId], references: [id])
+  byajEntries AdvanceByajEntry[]
+
+  @@index([firmId, kisanId])
+  @@map("advances")
+}
+
+model AdvanceByajEntry {
+  id              Int      @id @default(autoincrement())
+  advanceId       Int      @map("advance_id")
+  month           DateTime @db.Date
+  byajAmount      Decimal  @db.Decimal(14, 2) @map("byaj_amount")
+  journalEntryId  Int?     @map("journal_entry_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  advance Advance @relation(fields: [advanceId], references: [id])
+
+  @@map("advance_byaj_entries")
+}
+
+model Sauda {
+  id            Int         @id @default(autoincrement())
+  firmId        Int         @map("firm_id")
+  vyapariId     Int         @map("vyapari_id")
+  date          DateTime    @db.Date
+  deliveryDate  DateTime?   @db.Date @map("delivery_date")
+  status        SaudaStatus @default(pending)
+  narration     String?     @db.VarChar(300)
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  firm     Firm        @relation(fields: [firmId], references: [id])
+  vyapari  Party       @relation(fields: [vyapariId], references: [id])
+  items    SaudaItem[]
+
+  @@index([firmId, status])
+  @@map("saudas")
+}
+
+model SaudaItem {
+  id              Int     @id @default(autoincrement())
+  saudaId         Int     @map("sauda_id")
+  itemId          Int     @map("item_id")
+  quantityBags    Decimal @db.Decimal(10, 3) @map("quantity_bags")
+  agreedRatePerQtl Decimal @db.Decimal(10, 2) @map("agreed_rate_per_qtl")
+  deliveredBags   Decimal @default(0) @db.Decimal(10, 3) @map("delivered_bags")
+
+  sauda Sauda @relation(fields: [saudaId], references: [id])
+  item  Item  @relation(fields: [itemId], references: [id])
+
+  @@map("sauda_items")
+}
+
+model Amanat {
+  id        Int      @id @default(autoincrement())
+  firmId    Int      @map("firm_id")
+  kisanId   Int      @map("kisan_id")
+  date      DateTime @db.Date
+  narration String?  @db.VarChar(300)
+  closed    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  firm   Firm         @relation(fields: [firmId], references: [id])
+  kisan  Party        @relation(fields: [kisanId], references: [id])
+  items  AmanatItem[]
+
+  @@index([firmId, kisanId])
+  @@map("amanats")
+}
+
+model AmanatItem {
+  id            Int     @id @default(autoincrement())
+  amanatId      Int     @map("amanat_id")
+  itemId        Int     @map("item_id")
+  godownId      Int?    @map("godown_id")
+  quantityBags  Decimal @db.Decimal(10, 3) @map("quantity_bags")
+  totalWeightKg Decimal @db.Decimal(12, 3) @map("total_weight_kg")
+  convertedBags Decimal @default(0) @db.Decimal(10, 3) @map("converted_bags")
+
+  amanat  Amanat  @relation(fields: [amanatId], references: [id])
+  item    Item    @relation(fields: [itemId], references: [id])
+  godown  Godown? @relation(fields: [godownId], references: [id])
+
+  @@map("amanat_items")
+}
+
+model CommitteePayment {
+  id            Int         @id @default(autoincrement())
+  firmId        Int         @map("firm_id")
+  date          DateTime    @db.Date
+  periodFrom    DateTime    @db.Date @map("period_from")
+  periodTo      DateTime    @db.Date @map("period_to")
+  amount        Decimal     @db.Decimal(14, 2)
+  receiptNo     String?     @db.VarChar(50) @map("receipt_no")
+  mode          PaymentMode
+  journalEntryId Int?       @map("journal_entry_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  firm Firm @relation(fields: [firmId], references: [id])
+
+  @@map("committee_payments")
+}
+
+model GatePass {
+  id        Int      @id @default(autoincrement())
+  firmId    Int      @map("firm_id")
+  passNo    String   @db.VarChar(30) @map("pass_no")
+  date      DateTime @db.Date
+  saleId    Int?     @map("sale_id")
+  stockLotId Int?   @map("stock_lot_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  firm Firm @relation(fields: [firmId], references: [id])
+
+  @@index([firmId])
+  @@map("gate_passes")
+}
+
+model StockLot {
+  id              Int      @id @default(autoincrement())
+  firmId          Int      @map("firm_id")
+  purchaseId      Int?     @map("purchase_id")
+  kisanId         Int?     @map("kisan_id")
+  itemId          Int      @map("item_id")
+  godownId        Int?     @map("godown_id")
+  date            DateTime @db.Date
+  quantityBags    Decimal  @db.Decimal(10, 3) @map("quantity_bags")
+  totalWeightKg   Decimal  @db.Decimal(12, 3) @map("total_weight_kg")
+  remainingBags   Decimal  @db.Decimal(10, 3) @map("remaining_bags")
+  remainingWeightKg Decimal @db.Decimal(12, 3) @map("remaining_weight_kg")
+  ratePerQtl      Decimal  @db.Decimal(10, 2) @map("rate_per_qtl")
+  committeePaid   Boolean  @default(false) @map("committee_paid")
+  gatePassNo      String?  @db.VarChar(30) @map("gate_pass_no")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  firm      Firm              @relation(fields: [firmId], references: [id])
+  purchase  Purchase?         @relation(fields: [purchaseId], references: [id])
+  kisan     Party?            @relation(fields: [kisanId], references: [id])
+  item      Item              @relation(fields: [itemId], references: [id])
+  godown    Godown?           @relation(fields: [godownId], references: [id])
+  movements StockMovement[]
+
+  @@index([firmId, itemId])
+  @@map("stock_lots")
+}
+
+model StockMovement {
+  id            Int               @id @default(autoincrement())
+  stockLotId    Int               @map("stock_lot_id")
+  type          StockMovementType
+  bags          Decimal           @db.Decimal(10, 3)
+  weightKg      Decimal           @db.Decimal(12, 3) @map("weight_kg")
+  reason        AdjustmentReason?
+  refType       String?           @db.VarChar(50) @map("ref_type")
+  refId         Int?              @map("ref_id")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  stockLot StockLot @relation(fields: [stockLotId], references: [id])
+
+  @@index([stockLotId])
+  @@map("stock_movements")
+}
+
+model BardanaMovement {
+  id        Int      @id @default(autoincrement())
+  firmId    Int      @map("firm_id")
+  partyId   Int      @map("party_id")
+  date      DateTime @db.Date
+  bagsIn    Int      @default(0) @map("bags_in")
+  bagsOut   Int      @default(0) @map("bags_out")
+  narration String?  @db.VarChar(300)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  firm  Firm  @relation(fields: [firmId], references: [id])
+  party Party @relation(fields: [partyId], references: [id])
+
+  @@map("bardana_movements")
+}
+
+model BhavDiary {
+  id        Int      @id @default(autoincrement())
+  firmId    Int      @map("firm_id")
+  date      DateTime @db.Date
+  itemId    Int      @map("item_id")
+  lowBhav   Decimal  @db.Decimal(10, 2) @map("low_bhav")
+  highBhav  Decimal  @db.Decimal(10, 2) @map("high_bhav")
+  avgBhav   Decimal  @db.Decimal(10, 2) @map("avg_bhav")
+  note      String?  @db.VarChar(300)
+
+  firm Firm @relation(fields: [firmId], references: [id])
+  item Item @relation(fields: [itemId], references: [id])
+
+  @@unique([firmId, date, itemId])
+  @@map("bhav_diary")
+}
+
+model FyClosing {
+  id              Int      @id @default(autoincrement())
+  firmId          Int      @map("firm_id")
+  fyYear          Int      @map("fy_year")
+  closingDate     DateTime @db.Date @map("closing_date")
+  closingStockVal Decimal  @db.Decimal(14, 2) @map("closing_stock_val")
+  locked          Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  firm Firm @relation(fields: [firmId], references: [id])
+
+  @@unique([firmId, fyYear])
+  @@map("fy_closings")
+}
+
+model PalledarSettlement {
+  id              Int         @id @default(autoincrement())
+  firmId          Int         @map("firm_id")
+  date            DateTime    @db.Date
+  periodFrom      DateTime    @db.Date @map("period_from")
+  periodTo        DateTime    @db.Date @map("period_to")
+  hammaliCollected Decimal    @db.Decimal(14, 2) @map("hammali_collected")
+  amountPaid      Decimal     @db.Decimal(14, 2) @map("amount_paid")
+  journalEntryId  Int?        @map("journal_entry_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  firm Firm @relation(fields: [firmId], references: [id])
+
+  @@map("palledar_settlements")
+}

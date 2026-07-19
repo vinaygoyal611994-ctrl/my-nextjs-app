@@ -16,8 +16,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { isGovtDues } = req.body as { isGovtDues: boolean };
     const acc = await prisma.account.findFirst({ where: { id: accountId, firmId } });
     if (!acc) return res.status(404).json({ error: "Account not found" });
-    // Ensure column exists before updating
-    await prisma.$executeRaw`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_govt_dues TINYINT(1) NOT NULL DEFAULT 0`;
+    // Ensure column exists before updating (MySQL doesn't support ADD COLUMN IF NOT EXISTS)
+    type ColCheck = { cnt: bigint };
+    const [colRow] = await prisma.$queryRaw<ColCheck[]>`
+      SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accounts' AND COLUMN_NAME = 'is_govt_dues'
+    `;
+    if (Number(colRow.cnt) === 0) {
+      await prisma.$executeRaw`ALTER TABLE accounts ADD COLUMN is_govt_dues TINYINT(1) NOT NULL DEFAULT 0`;
+    }
     await prisma.$executeRaw`UPDATE accounts SET is_govt_dues = ${isGovtDues ? 1 : 0} WHERE id = ${accountId} AND firm_id = ${firmId}`;
     return res.status(200).json({ ok: true });
   }

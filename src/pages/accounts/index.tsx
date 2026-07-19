@@ -525,8 +525,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     ])
   );
 
-  // Ensure column exists
-  await prisma.$executeRaw`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_govt_dues TINYINT(1) NOT NULL DEFAULT 0`;
+  // Ensure column exists (MySQL doesn't support ADD COLUMN IF NOT EXISTS)
+  type ColCheck = { cnt: bigint };
+  const [colRow] = await prisma.$queryRaw<ColCheck[]>`
+    SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accounts' AND COLUMN_NAME = 'is_govt_dues'
+  `;
+  if (Number(colRow.cnt) === 0) {
+    await prisma.$executeRaw`ALTER TABLE accounts ADD COLUMN is_govt_dues TINYINT(1) NOT NULL DEFAULT 0`;
+  }
 
   // Rename COMM001→MSHK001 if MSHK001 doesn't exist yet
   await prisma.$executeRaw`
